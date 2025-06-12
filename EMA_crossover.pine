@@ -1,0 +1,20 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sirawitchchairuangsirikul
+
+//@version=6
+strategy("sma10,30 crossover", overlay=true, fill_orders_on_standard_ohlc = true)
+
+shortSMA = ta.sma(close,10)
+longSMA = ta.sma(close,30)
+
+longCondition = ta.crossover(shortSMA, longSMA)
+if (longCondition)
+    strategy.entry("long", strategy.long)
+
+shortCondition = ta.crossunder(shortSMA, longSMA)
+if (shortCondition)
+    strategy.close("long")
+
+// plot 
+plot(shortSMA,"short",color = color.yellow,linewidth=2)
+plot(longSMA,"long",color = color.orange,linewidth=2)
