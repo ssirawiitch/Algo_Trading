@@ -68,5 +68,16 @@ if (strategy.position_size < 0)
 bgcolor(inTimeRange() ? color.new(color.green,90):na) 
 plot(fast_ema, title="EMA50", color=color.orange, force_overlay = true )
 plot(slow_ema, title="EMA100", color=color.blue, force_overlay = true )
-plot(tpLevel, title="Take Profit", color=color.green)
-plot(slLevel, title="Stop Loss", color=color.red)
+
+// plot tp sl
+ep = strategy.opentrades > 0 ? strategy.opentrades.entry_price(0) : na  // return  “ราคาเปิด” ของเทรดลำดับ index
+tpPlot = strategy.position_size > 0 ? ep * (1 + tpPercent / 100) :
+         strategy.position_size < 0 ? ep * (1 - tpPercent / 100) : na
+
+slPlot = strategy.position_size > 0 ? ep * (1 - slPercent / 100) :
+         strategy.position_size < 0 ? ep * (1 + slPercent / 100) : na
+
+plot(strategy.opentrades > 0 ? strategy.opentrades.entry_price(0):na , "Entry Price", color=color.gray, style=plot.style_circles, linewidth=2)
+plot(tpPlot, color=color.green, style=plot.style_linebr, linewidth=2)
+plot(slPlot, color=color.red, style=plot.style_linebr, linewidth=2)
+
