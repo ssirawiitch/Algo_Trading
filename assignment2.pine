@@ -1,0 +1,66 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sirawitchchairuangsirikul
+
+//@version=6
+strategy("S501 Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2)
+
+// price = request.security(syminfo.tickerid, "30", close)   // to restrict timeframe 30 for trading
+fast_ema = ta.ema(close, 50)
+slow_ema = ta.ema(close, 100)
+vol_avg = ta.sma(volume, 20)
+tpPercent = 2.0    // 2% TP
+slPercent = 1.0    // 1% SL
+var float entry_price = na
+var float tpLevel = na
+var float slLevel = na
+var float halfTP = na
+
+// get asia time
+timeInZone = time(timeframe.period, "Asia/Bangkok")
+h = hour(timeInZone)
+m = minute(timeInZone)
+
+// function to check valid time
+inTimeRange() =>
+    in_session1 = (h == 10 and m >= 15) or (h == 11) or (h == 12 and m <= 30)
+    in_session2 = (h == 14 and m >= 30) or (h == 15) or (h == 16 and m <= 15)
+    in_session1 or in_session2
+
+// trade
+if (inTimeRange())
+    f_con = close > fast_ema and close > slow_ema 
+    f2_con = close < fast_ema and close < slow_ema
+    s_con = volume > vol_avg
+    buySignal = f_con and s_con
+    sellSignal = f2_con and s_con
+
+    if(buySignal)
+        strategy.entry("Buy", strategy.long)
+        entry_price := strategy.position_avg_price
+        tpLevel := entry_price * (1 + tpPercent / 100)
+        slLevel := entry_price * (1 - slPercent / 100)
+        halfTP := entry_price * (1 + (tpPercent / 2) / 100)
+
+    if(sellSignal)
+        strategy.entry("Short", strategy.short)
+        entry_price := strategy.position_avg_price
+        tpLevel := entry_price * (1 - tpPercent / 100)
+        slLevel := entry_price * (1 + slPercent / 100)
+        halfTP := entry_price * (1 - (tpPercent / 2) / 100)
+else
+    is_end_bar = (h == 16 and m == 15)
+    if (strategy.position_size != 0 and is_end_bar)
+        strategy.close_all("close all position") 
+
+// tp and sl
+if (strategy.position_size != 0)  // buy position
+    strategy.exit("TP/SL", from_entry="fix position", limit=tpLevel, stop=slLevel)
+    if (close > halfTP)
+        strategy.exit("Half TP", from_entry="fix position", limit=tpLevel, stop=entry_price)
+
+// plot
+bgcolor(inTimeRange() ? color.new(color.green,90):na) 
+plot(fast_ema, title="EMA50", color=color.orange, force_overlay = true )
+plot(slow_ema, title="EMA100", color=color.blue, force_overlay = true )
+plot(tpLevel, title="Take Profit", color=color.green)
+plot(slLevel, title="Stop Loss", color=color.red)
