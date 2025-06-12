@@ -1,0 +1,34 @@
+// @version=6
+
+indicator("RSI Oscillator and Engulfing")
+
+// import zen library
+import ZenAndTheArtOfTrading/ZenLibrary/2 as zen
+
+// get user input
+lookback = input.int(title="LookBack", defval = 7)
+rsiLen = input.int(title="RSI Length", defval = 7)
+rsiOB = input.float(title="RSI Overbought", defval = 80.0)
+rsiOS = input.float(title="RSI Oversold", defval = 20.0)
+
+// get RSI
+rsi = ta.rsi(close,rsiLen)
+rsiSell = rsi > rsiOB
+rsiBuy = rsi < rsiOS
+
+// detect engulfing
+bullEC = zen.isBullishEC()
+bearEC = zen.isBearishEC()
+
+// detect buy and sell signals
+buySignal = (rsiBuy[1] or rsiBuy) and bullEC
+sellSignal = (rsiSell[1] or rsiSell) and bearEC
+
+// draw data on chart
+plot(rsi,title = "RSI",color=rsiBuy? color.lime : rsiSell? color.red : color.gray, linewidth=2)
+hline(rsiOB, title = "RSI Overbought", color=color.red, linewidth=1)
+hline(rsiOS, title = "RSI Oversold", color=color.green, linewidth=1)
+bgcolor(buySignal? color.lime : sellSignal? color.red : na,title = "trade signal")
+
+// Trigger and alert
+alertcondition(buySignal or sellSignal, title="RSI Signal", message="RSI Exhaustion for {{ticker}}") // ticker is EURUSD

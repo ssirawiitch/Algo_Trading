@@ -1,0 +1,18 @@
+// @version=6
+
+indicator(title = "MA Crosses", overlay = true )
+
+ema1 = ta.ema(close,50)
+ema2 = ta.ema(close,100)
+
+// plot
+plot(ema1, color=color.red, title="EMA 50")
+plot(ema2, color=color.blue, title="EMA 100")
+
+// get cross
+maCrossOver = ta.crossover(source1 =  ema1, source2 =  ema2)
+macrossUnder = ta.crossunder(source1 =  ema1, source2 =  ema2)
+
+// draw
+bgcolor(maCrossOver? color.green : na)
+bgcolor(macrossUnder? color.red : na)

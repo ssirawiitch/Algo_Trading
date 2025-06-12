@@ -34,14 +34,14 @@ if (inTimeRange())
     buySignal = f_con and s_con
     sellSignal = f2_con and s_con
 
-    if(buySignal)
+    if(buySignal and strategy.position_size == 0) // only have a position
         strategy.entry("Buy", strategy.long)
-        entry_price := strategy.position_avg_price
+        entry_price := strategy.position_avg_price  // can get entry price
         tpLevel := entry_price * (1 + tpPercent / 100)
         slLevel := entry_price * (1 - slPercent / 100)
         halfTP := entry_price * (1 + (tpPercent / 2) / 100)
 
-    if(sellSignal)
+    if(sellSignal and strategy.position_size == 0)
         strategy.entry("Short", strategy.short)
         entry_price := strategy.position_avg_price
         tpLevel := entry_price * (1 - tpPercent / 100)
@@ -53,7 +53,7 @@ else
         strategy.close_all("close all position") 
 
 // tp and sl
-if (strategy.position_size != 0)  // buy position
+if (strategy.position_size != 0)  // have position
     strategy.exit("TP/SL", from_entry="fix position", limit=tpLevel, stop=slLevel)
     if (close > halfTP)
         strategy.exit("Half TP", from_entry="fix position", limit=tpLevel, stop=entry_price)
