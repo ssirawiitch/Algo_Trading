@@ -2,7 +2,7 @@
 // © sirawitchchairuangsirikul
 
 //@version=6
-strategy("S501 Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2)
+strategy("S501 M30 Strategy",overlay=true,default_qty_type=strategy.fixed ,default_qty_value=1,commission_type=strategy.commission.cash_per_contract,commission_value=43.1,slippage=2)
 
 // price = request.security(syminfo.tickerid, "30", close)   // to restrict timeframe 30 for trading
 fast_ema = ta.ema(close, 50)
@@ -48,15 +48,21 @@ if (inTimeRange())
         slLevel := entry_price * (1 + slPercent / 100)
         halfTP := entry_price * (1 - (tpPercent / 2) / 100)
 else
-    is_end_bar = (h == 16 and m == 15)
-    if (strategy.position_size != 0 and is_end_bar)
-        strategy.close_all("close all position") 
+    if (strategy.position_size != 0)
+        strategy.close_all("Close Out Of Time")
 
 // tp and sl
-if (strategy.position_size != 0)  // have position
-    strategy.exit("TP/SL", from_entry="fix position", limit=tpLevel, stop=slLevel)
+if (strategy.position_size > 0)
     if (close > halfTP)
-        strategy.exit("Half TP", from_entry="fix position", limit=tpLevel, stop=entry_price)
+        strategy.exit("Long TP/SL", from_entry="Buy", limit=tpLevel, stop=entry_price)
+    else
+        strategy.exit("Long TP/SL", from_entry="Buy", limit=tpLevel, stop=slLevel)
+
+if (strategy.position_size < 0)
+    if (close < halfTP)
+        strategy.exit("Short TP/SL", from_entry="Short", limit=tpLevel, stop=entry_price)
+    else
+        strategy.exit("Short TP/SL", from_entry="Short", limit=tpLevel, stop=slLevel)
 
 // plot
 bgcolor(inTimeRange() ? color.new(color.green,90):na) 
