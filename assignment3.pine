@@ -1,0 +1,31 @@
+// Simple Grid Trading Model apply with support and resistance line (pivot points)
+
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sirawitchchairuangsirikul
+
+//@version=6
+strategy("Grid Trading",overlay=true,default_qty_type=strategy.fixed ,default_qty_value=1,commission_type=strategy.commission.cash_per_contract,commission_value=43.1,slippage=2)
+
+// หาราคากรอบราคาก่อนโดยใช้ ta.atr
+// multiplier = input.float(title="ATR Multiplier", defval = 1.5)
+numGrid = input.int(5, "Number of Grid Levels")
+
+// atr = ta.atr(14)
+// price = request.security(syminfo.tickerid, "D", close)
+upperZone = input.float(title = "Upper Zone",defval = 750)
+lowerZone = input.float(title = "Lower Zone",defval = 700)
+gridSize = (upperZone - lowerZone) / numGrid
+
+var float[] Array = array.new_float()
+
+// plot
+for i = 0 to numGrid
+    float num = lowerZone + (gridSize * i)
+    Array.push(num)
+    line.new(bar_index[20], num, bar_index, num, color=color.gray, width=2)
+
+// lower_bound find index ของเส้นที่ใกล้ราคามากที่สุด ตั้ง buy limit เส้นใต้นั้นแล้วขายที่เส้นถัดไป
+index = 0
+for i = 0 to Array.size() - 1
+    if (close < Array.get(i))
+        index := i

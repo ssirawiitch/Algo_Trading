@@ -1,0 +1,218 @@
+// @version=6    อย่าลิมใส่ version
+indicator(title="", overlay = true)  ถ้า overlay = true คือการ  plot กากบาทบนกราฟจริง ถ้าไม่ใส่จะโชว์ด้านล่างแทน
+plotshape(barstate.islast , text = "Hello World")  ให้พิม hello world  ในกราฟแท่งสุดท้าย (barstate.islast)
+
+
+// indicator
+indicator(title="super fancy script", shorttitle = "KUY", overlay = false, format = format.volume // ันคือเลขที่ขึ้นอยุ่ว่าจะให้ขึ้นอะไรอันนี้แสดง volume, precision=5 // จำวนทศริยมที่แสดง,
+    , scale = scale.left // แสดงกราฟราคาที่ทางซ้าย, max_bars_back=10 ย้อนหลัง10แท่งรวมตัวเอง, timeframe = "D" // พลอตเมื่อกราฟ day เปลี่ยนแต่แสดงใน h4 ได้
+)
+
+rsi = ta.rsi(close,14)  // ta is technical analysis function
+myStr = "10"
+str.tonumber(myStr)
+plot(rsi)
+
+// get price data
+candleOpen = open
+candleHigh = high
+candleLow = candleLow
+candleClose = close
+
+// analyze data
+candleSize = high - low
+candleSize10 = high[10] - low[10]  // 10 bars ago
+candleSizeRatio = candleSize / candleSize10
+atr = ta.atr(14)
+
+// Draw
+plot(candleOpen,color=color.blue)
+plot(candleHigh,color=color.red)
+plot(candleLow,color=color.green)
+plot(candleClose,color=color.yellow)
+plot(candleSize)
+plot(candleSizeRatio ,color = color.purple)
+
+
+:= คือ เอาตัวอื่นมาเขียนทับ x := x+1  = ใช้ตอนประกาศตัวแปร
+ถ้าใช้ x = 1 ค่ามันจะ reset  ใหม่ทุกแท่ง แต่ถ้าเป็น  var x = 1 มันจะอยู่ข้ามแท่ง
+varip จะคงค่าของมันไว้ตลอดการอัปเดตที่เกิดขึ้นภายในแท่งราคาปัจจุบันเดียวกัน มันจะ "หนีรอด" กระบวนการ Rollback ที่เกิดขึ้นกับตัวแปรปกติและ var ในแท่งราคาปัจจุบัน
+นี่เป็นสิ่งที่มีประโยชน์อย่างมากสำหรับการคำนวณที่ต้องการเก็บสถานะภายในแท่งราคาปัจจุบัน
+
+
+// get user input
+booleanInput = input.bool(title,defval = true // default value to true)
+integerInput = input.int(title,defval = 33,minval = 0,maxval = 40,step=2)
+floatInput = input.float(title,defval,confirm = true)  // false  คือเปลี่ยนค่าปุ๊บรันใหม่ทันที แต่ ถ้าเป็น true  ต้องรอ user confirm ก่อานค่อยคิด
+priceinput = input.price(title,defval,confirm=true)   // let user select price using mouse , horizontal line
+timeInput = input.time(title,defval,confirm = true)   // select verticle line
+
+
+// Alert
+hc = close > high[1]
+lc = close < low[1]
+
+if hc
+    alert(message="",freq=alert.freq_all)
+
+alertcondition(condition to create alert ex.hc , "Higher Close Alert",mesaage )
+
+
+// plot data
+cant plot(true) only number
+plot(close , title = "" for iuser to select color,color = color.green,linewidth = 1,style = plot.stylr_circles,trackprice = true // plot horizontal line to track price, 
+    histbase = 1.17 // for histogram, column and area เป็นเส้นกลางที่ 1.17 for macd, offset = 1 // shift 1 bar to the right, join = true // เชื่อม
+    , editable = false // แก้ style ได้ , show_last = 10 // show only last 10 , display = display.none // not draw for debugging
+)
+color = color.new(color.purple,100) // 100 % transparency
+
+
+// note
+1. ควรเรียกใช้ฟังก์ชันที่ต้องอาศัยประวัติข้อมูล (เช่น ta.sma(), ฟังก์ชันที่คุณสร้างขึ้นเองที่อ้างอิงค่าจากแท่งก่อนหน้า) ใน Global Scope ของสคริปต์ (นอกบล็อกเงื่อนไข) เพื่อให้แน่ใจว่าฟังก์ชันทำงานในทุกแท่งและรักษาความต่อเนื่องของประวัติข้อมูล เอาไว่นอก if condition
+2. ta.barssince() คือ จำนวนแท่งนับตั้งแต่เงื่อนไขเป็นจริง
+3.const string PLOT2_TITLE = "Low"
+4.hl2: the average of the bar’s high and low values.
+    hlc3: the average of the bar’s high, low and close values.
+    ohlc4: the average of the bar’s open, high, low and close values.
+
+// strategy example
+//@version=6
+strategy("My Strategy", overlay=true, margin_long=100, margin_short=100)
+
+longCondition = ta.crossover(ta.sma(close, 14), ta.sma(close, 28))
+if (longCondition)
+    strategy.entry("My Long Entry Id", strategy.long)  // qty เพื่อซื้อได้ 50 % , limit  // can limit order ได้,stop = 
+
+shortCondition = ta.crossunder(ta.sma(close, 14), ta.sma(close, 28))
+if (shortCondition)
+    strategy.entry("My Short Entry Id", strategy.short)
+
+ตัวอย่าง: ถ้า margin_long=20 (หมายถึง 20%) ระบบจำลองจะถือว่าการเปิดตำแหน่ง Long ใดๆ ต้องการเงินทุนจากยอดคงเหลือของกลยุทธ์เพียง 20% ของมูลค่าตำแหน่งทั้งหมด ส่วนอีก 80% ที่เหลือคือเงินที่ "ยืม" มาจากโบรกเกอร์เสมือน
+นี่เทียบเท่ากับการใช้ Leverage 1:5 (100% / 20% = 5)  ถ้าเป็น 100 คือเล่นไม่มี reverage
+
+การปิดบางส่วน (Partial Exits):
+
+strategy.entry(): ไม่สามารถใช้เพื่อปิดตำแหน่งบางส่วนได้โดยตรง
+strategy.order(): สามารถทำได้ โดยการสั่ง strategy.order() ในทิศทางตรงกันข้ามกับตำแหน่งปัจจุบัน ด้วย qty ที่น้อยกว่าขนาดตำแหน่งปัจจุบัน
+ต้องการกลับทิศทางเป็น Short 50 หุ้น:
+
+strategy.entry(): ไม่แนะนำให้ใช้โดยตรงสำหรับกรณีนี้ อาจทำให้เกิดพฤติกรรมที่ไม่คาดคิด หรือไม่สามารถดำเนินการได้เลย
+strategy.order("ReverseToShort", strategy.short, 150): นี่คือวิธีที่ถูกต้องและชัดเจนที่สุด มันจะปิด Long 100 หุ้นก่อน แล้วเปิด Short อีก 50 หุ้น (รวมเป็น Short 150)
+
+for tp and sl
+strategy.exit("exit", "buy", limit = takeProfit, stop = stopLoss)
+strategy.exit("exit", "buy", limit = takeProfit, stop = stopLoss)
+
+for close position
+strategy.close("buy") or close_all
+
+strategy.cancel() or strategy.cancel_all()
+
+
+// switch case
+//@version=6
+indicator("Switch using an expression", "", true)
+
+string maType = input.string("EMA", "MA type", options = ["EMA", "SMA", "RMA", "WMA"])
+int maLength = input.int(10, "MA length", minval = 2)
+
+float ma = switch maType
+    "EMA" => ta.ema(close, maLength)
+    "SMA" => ta.sma(close, maLength)
+    "RMA" => ta.rma(close, maLength)
+    "WMA" => ta.wma(close, maLength)
+    => 
+        runtime.error("No matching MA type found.")
+        float(na)
+
+plot(ma)
+
+// for loop
+for i = 0 to lengthInput - 1
+    closeSum += close[i]
+
+for rowArray in myMatrix or in array / map  ก็ได้
+for [key, value] in simpleMap
+
+// while loop 
+ int j = 0
+    // A `while` loop that creates orange labels displaying each `j` value.
+    while j <= 10
+        label.new(
+             bar_index + j, 0, str.tostring(j), color = color.orange, textcolor = color.white, 
+             size = size.large, style = label.style_label_up
+         )
+        // Update the `j` counter within the local block.
+        j += 1
+
+simple Qualifier
+ลักษณะ: ค่าที่ถูกระบุว่าเป็น "simple" จะถูกกำหนดในการประมวลผลสคริปต์ครั้งแรก (มักจะเป็นบาร์แรก) และ คงที่อยู่เสมอ ในการประมวลผลครั้งต่อๆ ไป ไม่ว่าจะเกิดอะไรขึ้นบนกราฟ
+การประกาศ: ผู้ใช้สามารถกำหนดตัวแปรให้เป็น simple ได้โดยใช้คีย์เวิร์ด simple ในการประกาศ เช่น simple bool mySimpleVar = true
+
+series Qualifier
+ลักษณะ: ค่าที่ถูกระบุว่าเป็น "series" มีความยืดหยุ่นสูงสุดในสคริปต์ เนื่องจาก สามารถเปลี่ยนแปลงได้ในการประมวลผลแต่ละครั้ง (ทุกบาร์และทุกการอัปเดตใน realtime bar)
+
+fill() Function
+หน้าที่: ฟังก์ชัน fill() ใช้สำหรับ เติมสีพื้นหลัง ระหว่างสองเส้นกราฟ plots
+
+hline() Function
+หน้าที่: ฟังก์ชัน hline() ใช้สำหรับ วาดเส้นแนวนอน
+
+// array
+a1 = array.new<int>(1, 10)
+array<int> a2 = array.new<int>(1, 10)
+a3 = array.from(10)
+array<int> a4 = array.from(10)
+array.unshift() inserts a new element at the beginning of an array (index 0) and increases the index values of any existing elements by one.
+array.insert() inserts a new element at the specified index and increases the index of existing elements at or after the index by one.
+array.push() adds a new element at the end of an array.
+array.remove() removes the element at the specified index and returns that element’s value.
+array.shift() removes the first element from an array and returns its value.
+array.pop() removes the last element of an array and returns its value.
+array.clear() removes all elements from an array. Note that clearing an array won’t delete any objects its elements referenced. See the example below that illustrates how this works:
+array.get(index) เพื่อเข้าถึงข้อมูลใน array
+array.abs(), array.avg(), array.covariance(), array.min(), array.max(), array.median(), array.mode(), array.percentile_linear_interpolation(), array.percentile_nearest_rank(), array.percentrank(), array.range(), array.standardize(), array.stdev(), array.sum(), array.variance().
+a.sort(order.descending) or a.sort() 
+array.reverse()
+index slicing : sliceOfA = array.slice(array,index from,index to)
+
+// map
+map<string, float> myMap = na
+map.put(key,value)
+map.get()
+//@variable An array containing the keys of `m` in their insertion order.
+array<string> keys = m.keys()
+//@variable An array containing the values of `m` in their insertion order.
+array<float> values = m.values()
+map.contain(key)  เพื่อบอกว่ามี key in map?
+m.remove(key) for  remove key
+
+// enum
+enum maChoice
+    sma  = "Simple Moving Average"
+    ema  = "Exponential Moving Average"
+    wma  = "Weighted Moving Average"
+    hma  = "Hull Moving Average"
+
+// object or type
+    //@type             A user-defined type containing pivot information.
+    //@field pivotTime  Contains time information about the pivot.
+    //@field priceLevel Contains price information about the pivot.
+    //@field nextPivot  A `pivotPoint` instance containing additional pivot information.
+    type pivotPoint
+        int        pivotTime
+        float      priceLevel
+        pivotPoint nextPivot
+
+    foundPoint = pivotPoint.new(x = time, y = high)
+
+// tuple example function that return tuple
+calcSumAndProduct(float a, float b) =>
+    //@variable The sum of `a` and `b`.
+    float sum = a + b
+    //@variable The product of `a` and `b`.
+    float product = a * b
+    // Return a tuple containing the `sum` and `product`.
+    [sum, product]
+
+// Method ~ function in class
