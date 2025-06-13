@@ -1,0 +1,34 @@
+// Pivot point
+
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sirawitchchairuangsirikul
+
+//@version=6
+strategy("Pivot",overlay=true,default_qty_type=strategy.fixed ,default_qty_value=1,commission_type=strategy.commission.cash_per_contract,commission_value=43.1,slippage=2)
+
+
+// we will reset pivot point daily and close order at the end of the day
+// first calculate pivot point (only use s1,s2 to buy แบ่งเงินซื้อไม้ละ 33 % ตั้งไว้3ไม้ ถ้าลงมากกว่านี้จะ  sl , tp ที่ r1 , sl at s3)
+h1 = request.security(syminfo.tickerid, "240", high[1])
+l1 = request.security(syminfo.tickerid, "240", low[1])
+c1 = request.security(syminfo.tickerid, "240", close[1])
+
+h2 = request.security(syminfo.tickerid, "240", high[2])
+l2 = request.security(syminfo.tickerid, "240", low[2])
+
+prevHigh = math.max(h1, h2)
+prevLow  = math.min(l1, l2)
+prevClose = c1  // ใช้ Close ของ H4 ล่าสุด
+
+pivot = (prevHigh + prevLow + prevClose) / 3
+r1 = (2 * pivot) - prevLow
+s1 = (2 * pivot) - prevHigh
+s2 = pivot - (prevHigh - prevLow)
+s3 = prevLow - 2 * (prevHigh - pivot)
+
+// plot
+plot(pivot, color=color.blue, title="Pivot", linewidth=2)
+plot(r1, color=color.red, title="R1", linewidth=1)      
+plot(s1, color=color.green, title="S1", linewidth=1)
+plot(s2, color=color.green, title="S2", linewidth=1)    
+plot(s3, color=color.green, title="S3", linewidth=1)
