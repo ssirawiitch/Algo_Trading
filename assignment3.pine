@@ -2,7 +2,7 @@
 // © sirawitchchairuangsirikul
 
 //@version=6
-strategy("Grid Trading Strategy", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1,commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2)
+strategy("Grid Trading Strategy", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1,margin_long = 0,commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2)
 
 numGrid = input.int(5, "Number of Grid Levels", minval=1)
 upperZone = input.float(title="Upper Zone", defval=750, minval=0)
@@ -16,7 +16,7 @@ var float[] gridLevels = array.new_float()
 // Check if it's the first bar of a new day
 var bool newDay = dayofmonth(time) != dayofmonth(time[1])
 
-// --- Grid Drawing Logic (Draws once per day) ---
+// Grid Drawing Logic (Draws once per day)
 if newDay or barstate.isfirst // Re-calculate and draw grid at the start of a new day
     array.clear(gridLevels) 
     for i = 0 to numGrid
@@ -29,24 +29,24 @@ if newDay or barstate.isfirst // Re-calculate and draw grid at the start of a ne
         // line.new(bar_index[20], num, bar_index, num, color=color.gray, width=2)
         line.new(x1=bar_index, y1=level, x2=bar_index + 100, y2=level, color=color.gray, width=2, extend=extend.right, xloc=xloc.bar_time)
 
-var float buyLimitPrice = na      
-var float takeProfitPrice = na   
-var float stopLossPrice = na      
-var bool isOrderPending = false    
+var bool isOrderPending = false   
+var float level = na
+var float TPPrice = na
+var float SLPrice = na
 
 // Daily Reset for Orders
 if newDay
     // Reset variables
-    buyLimitPrice := na
-    takeProfitPrice := na
-    stopLossPrice := na
+    level := na
+    TPPrice := na
+    SLPrice := na
     isOrderPending := false
 
     // Close any open positions from previous day
     // if strategy.position_size != 0
     //     strategy.close_all(comment="EOD Close from previous day")
 
-// --- Entry Logic (Place Buy Limit Order) ---
+// Entry Logic (Place Buy Limit Order)
 // Only consider placing a new entry order if:
 // 1. There is no current open position.
 // 2. There is no pending limit order already placed for this day.
@@ -60,15 +60,19 @@ if strategy.position_size == 0 and not isOrderPending
                 break
 
     // If a valid entry grid index is found and there's a grid line above it for TP
-    if na(entryGridIndex) == false and entryGridIndex < numGrid
-        buyLimitPrice := array.get(gridLevels, entryGridIndex)               // Buy Limit at the grid line below 'open'
-        takeProfitPrice := array.get(gridLevels, entryGridIndex + 1)         // TP at the next grid line above
-        stopLossPrice := buyLimitPrice - (gridSize / 2)                      // SL at half grid size below entry
+    if na(entryGridIndex) == false and entryGridIndex < numGrid and numGrid > 0
 
-        // Place Buy Limit Order with TP and SL
-        strategy.entry(id="MainLongEntry",direction=strategy.long,qty= 1,limit=buyLimitPrice)
-        strategy.exit(id="MainLongEntry",limit = takeProfitPrice,stop=stopLossPrice)
-        // strategy.exit("Long TP/SL", from_entry="Buy", limit=tpLevel, stop=slLevel)
+        // วนลูปเพื่อตั้ง buy limit ทุกเส้น
+        for i = 0 to (entryGridIndex - 1)
+            level := array.get(gridLevels, i)
+            TPPrice := array.get(gridLevels,i+1)
+            SLPrice := level - (gridSize / 2)
+
+            string buyId = "GridBuyLimit_" + str.tostring(i)
+            string exitId = "BuyExit_" + str.tostring(i)
+
+            strategy.order(id = buyId, direction=strategy.long, qty=1, limit=level)
+            strategy.exit(exitId, from_entry= buyId, limit=TPPrice, stop=SLPrice)
 
         isOrderPending := true
 
@@ -85,9 +89,9 @@ if is_time_to_close_eod and strategy.position_size != 0
     isOrderPending := false
 
 // Plotting the current planned Buy Limit, TP, and SL levels
-plot(isOrderPending ? buyLimitPrice : na, "Buy Limit Price", color=color.blue, style=plot.style_linebr, linewidth=2)
-plot(strategy.position_size != 0 ? takeProfitPrice : na, "TP Level", color=color.green, style=plot.style_linebr, linewidth=2)
-plot(strategy.position_size != 0 ? stopLossPrice : na, "SL Level", color=color.red, style=plot.style_linebr, linewidth=2)
+// plot(isOrderPending ? buyLimitPrice : na, "Buy Limit Price", color=color.blue, style=plot.style_linebr, linewidth=2)
+// plot(strategy.position_size > 0 ? TPPrice : na, "TP Level", color=color.green, style=plot.style_linebr, linewidth=2)
+// plot(strategy.position_size  0 ? stopLossPrice : na, "SL Level", color=color.red, style=plot.style_linebr, linewidth=2)
 
 // Plot current position average price if open
 plot(strategy.position_size != 0 ? strategy.position_avg_price : na, "Entry Price", color=color.purple, style=plot.style_cross, linewidth=2)
