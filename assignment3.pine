@@ -66,13 +66,13 @@ if strategy.position_size == 0 and not isOrderPending
         for i = 0 to (entryGridIndex - 1)
             level := array.get(gridLevels, i)
             TPPrice := array.get(gridLevels,i+1)
-            SLPrice := level - (gridSize / 2)
+            //SLPrice := level - (gridSize / 2)
 
             string buyId = "GridBuyLimit_" + str.tostring(i)
             string exitId = "BuyExit_" + str.tostring(i)
 
             strategy.order(id = buyId, direction=strategy.long, qty=1, limit=level)
-            strategy.exit(exitId, from_entry= buyId, limit=TPPrice, stop=SLPrice)
+            strategy.exit(exitId, from_entry= buyId, limit=TPPrice)
 
         isOrderPending := true
 
@@ -88,10 +88,7 @@ if is_time_to_close_eod and strategy.position_size != 0
     strategy.cancel_all()
     isOrderPending := false
 
-// Plotting the current planned Buy Limit, TP, and SL levels
-// plot(isOrderPending ? buyLimitPrice : na, "Buy Limit Price", color=color.blue, style=plot.style_linebr, linewidth=2)
-// plot(strategy.position_size > 0 ? TPPrice : na, "TP Level", color=color.green, style=plot.style_linebr, linewidth=2)
-// plot(strategy.position_size  0 ? stopLossPrice : na, "SL Level", color=color.red, style=plot.style_linebr, linewidth=2)
-
 // Plot current position average price if open
 plot(strategy.position_size != 0 ? strategy.position_avg_price : na, "Entry Price", color=color.purple, style=plot.style_cross, linewidth=2)
+
+// code นี้คือเมื่อ มันพึ่งปิด order มันจะเอา ราคา open ของแท่งหลังจากปิด order มาคิดและตั้ง buylimit ตามอท่งนั้น ทำให้ทุกครั้งที่ราคาชน grid มันจะไมาเปิดออร์เดอร์บางครั้ง
