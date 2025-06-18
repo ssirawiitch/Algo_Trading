@@ -1,0 +1,47 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sirawitchchairuangsirikul
+
+//@version=6
+strategy("Grid Trading Strategy (Open Every Touch)", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2)
+
+numGrid   = input.int(5, "Number of Grid Levels", minval=1)
+upperZone = input.float(title = "Upper Zone", defval=750)
+lowerZone = input.float(title = "Lower Zone", defval=700)
+
+// ===== GRID CALCULATION =====
+var float gridSize = (upperZone - lowerZone) / numGrid
+var float[] gridLevels = array.new_float()
+
+var bool newDay = dayofmonth(time) != dayofmonth(time[1])
+
+if newDay or barstate.isfirst
+    array.clear(gridLevels)
+    for i = 0 to numGrid
+        array.push(gridLevels, lowerZone + i * gridSize)
+
+    // วาดเส้น grid
+    for i = 0 to numGrid
+        float level = array.get(gridLevels, i)
+        line.new(bar_index, level, bar_index + 100, level, color=color.gray, width=2, extend=extend.right, xloc=xloc.bar_time)
+
+// ===== วนตรวจทุก grid =====
+for i = 0 to numGrid - 1
+    float level = array.get(gridLevels, i)
+    float TPPrice = array.get(gridLevels, i + 1)
+
+    // ถ้าราคาแตะ level ในแท่งนี้
+    if low <= level and high >= level
+        string buyId  = "GridBuyLimit_" + str.tostring(i) + "_" + str.tostring(bar_index)
+        string exitId = "BuyExit_" + str.tostring(i) + "_" + str.tostring(bar_index)
+
+        strategy.order(id=buyId, direction=strategy.long, qty=1, limit=level)
+        strategy.exit(id=exitId, from_entry=buyId, limit=TPPrice)
+
+// ===== EOD (ปิดท้ายวัน) =====
+bool isEOD = hour(time) == 16 and minute(time) == 15
+if isEOD and strategy.position_size != 0
+    strategy.close_all(comment="End of Day Close")
+    strategy.cancel_all()
+
+// ===== แสดงราคาที่เปิดอยู่ =====
+plot(strategy.position_size != 0 ? strategy.position_avg_price : na, "Entry Price", color=color.purple, style=plot.style_cross, linewidth=2)
