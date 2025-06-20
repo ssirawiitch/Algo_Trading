@@ -2,7 +2,7 @@
 // © sirawitchchairuangsirikul
 
 //@version=6
-strategy("Grid Trading Strategy (Open Every Touch)", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2)
+strategy("Grid Trading Strategy (Open Every Touch)", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2, pyramiding=100)
 
 numGrid   = input.int(5, "Number of Grid Levels", minval=1)
 upperZone = input.float(title = "Upper Zone", defval=750)
@@ -11,6 +11,7 @@ lowerZone = input.float(title = "Lower Zone", defval=700)
 // ===== GRID CALCULATION =====
 var float gridSize = (upperZone - lowerZone) / numGrid
 var float[] gridLevels = array.new_float()
+var bool[] isGridUsed = array.new_bool(numGrid, false)
 
 var bool newDay = dayofmonth(time) != dayofmonth(time[1])
 

@@ -2,7 +2,7 @@
 // © sirawitchchairuangsirikul
 
 //@version=6
-strategy("Grid Trading Strategy", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1,margin_long = 0,commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2)
+strategy("Grid Trading Strategy", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1,margin_long = 0,commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2, pyramiding=100)
 
 numGrid = input.int(5, "Number of Grid Levels", minval=1)
 upperZone = input.float(title="Upper Zone", defval=750, minval=0)
@@ -26,59 +26,59 @@ if newDay or barstate.isfirst // Re-calculate and draw grid at the start of a ne
     // Plot grid lines for the new day
     for i = 0 to numGrid
         float level = array.get(gridLevels, i)
-        // line.new(bar_index[20], num, bar_index, num, color=color.gray, width=2)
         line.new(x1=bar_index, y1=level, x2=bar_index + 100, y2=level, color=color.gray, width=2, extend=extend.right, xloc=xloc.bar_time)
 
-var bool isOrderPending = false   
-var float level = na
-var float TPPrice = na
-var float SLPrice = na
+// Variables to track orders for each grid level
+var bool[] orderPlaced = array.new_bool()
 
 // Daily Reset for Orders
 if newDay
-    // Reset variables
-    level := na
-    TPPrice := na
-    SLPrice := na
-    isOrderPending := false
+    // Reset order tracking array
+    array.clear(orderPlaced)
+    for i = 0 to numGrid - 1
+        array.push(orderPlaced, false)
+    
+    // Cancel all pending orders from previous day
+    strategy.cancel_all()
 
-    // Close any open positions from previous day
-    // if strategy.position_size != 0
-    //     strategy.close_all(comment="EOD Close from previous day")
+// Initialize orderPlaced array on first bar if not already done
+if barstate.isfirst and array.size(orderPlaced) == 0
+    for i = 0 to numGrid - 1
+        array.push(orderPlaced, false)
 
-// Entry Logic (Place Buy Limit Order)
-// Only consider placing a new entry order if:
-// 1. There is no current open position.
-// 2. There is no pending limit order already placed for this day.
-if strategy.position_size == 0 and not isOrderPending
-    // lower_bound grid line
-    int entryGridIndex = na
-    if open > lowerZone and open < upperZone
-        for i = numGrid to 0
-            if open > array.get(gridLevels, i)
-                entryGridIndex := i
-                break
+// Entry Logic - Place Buy Limit Orders for each grid level
+// ใช้ close price แทน open price เพื่อความแม่นยำ
+currentPrice = close
 
-    // If a valid entry grid index is found and there's a grid line above it for TP
-    if na(entryGridIndex) == false and entryGridIndex < numGrid and numGrid > 0
+if currentPrice > lowerZone and currentPrice < upperZone
+    // หาว่าราคาปัจจุบันอยู่ grid level ไหน
+    for i = 0 to numGrid - 1
+        gridLevel = array.get(gridLevels, i)
+        
+        // ถ้าราคาปัจจุบันอยู่เหนือ grid level นี้ และยังไม่ได้ตั้งออร์เดอร์
+        if currentPrice > gridLevel and not array.get(orderPlaced, i)
+            // ตรวจสอบว่ามี grid level ถัดไปสำหรับ TP หรือไม่
+            if i < numGrid - 1
+                TPPrice = array.get(gridLevels, i + 1)
+                
+                string buyId = "GridBuyLimit_" + str.tostring(i)
+                string exitId = "BuyExit_" + str.tostring(i)
+                
+                // ตั้ง buy limit order
+                strategy.order(id = buyId, direction = strategy.long, qty = 1, limit = gridLevel)
+                strategy.exit(exitId, from_entry = buyId, limit = TPPrice)
+                
+                // ทำเครื่องหมายว่าได้ตั้งออร์เดอร์แล้ว
+                array.set(orderPlaced, i, true)
 
-        // วนลูปเพื่อตั้ง buy limit ทุกเส้น
-        for i = 0 to (entryGridIndex - 1)
-            level := array.get(gridLevels, i)
-            TPPrice := array.get(gridLevels,i+1)
-            //SLPrice := level - (gridSize / 2)
-
-            string buyId = "GridBuyLimit_" + str.tostring(i)
-            string exitId = "BuyExit_" + str.tostring(i)
-
-            strategy.order(id = buyId, direction=strategy.long, qty=1, limit=level)
-            strategy.exit(exitId, from_entry= buyId, limit=TPPrice)
-
-        isOrderPending := true
-
-// If a position is opened, it means the pending order was filled
-if strategy.position_size != 0 and isOrderPending
-    isOrderPending := false // Reset pending order flag as it's now filled
+// ตรวจสอบการเติมออร์เดอร์และรีเซ็ตสถานะ
+// เมื่อออร์เดอร์เติมและปิดแล้ว ให้รีเซ็ตสถานะเพื่อให้สามารถตั้งออร์เดอร์ใหม่ได้
+for i = 0 to numGrid - 1
+    if array.get(orderPlaced, i)
+        buyId = "GridBuyLimit_" + str.tostring(i)
+        // ถ้าไม่มี position ที่เปิดจาก order นี้แล้ว แสดงว่าถูกปิดไปแล้ว
+        if strategy.position_size == 0
+            array.set(orderPlaced, i, false)
 
 // End of Day Closing Logic
 bool is_time_to_close_eod = hour(time) == 16 and minute(time) == 15
@@ -86,9 +86,9 @@ bool is_time_to_close_eod = hour(time) == 16 and minute(time) == 15
 if is_time_to_close_eod and strategy.position_size != 0
     strategy.close_all(comment="End of Day Close")
     strategy.cancel_all()
-    isOrderPending := false
+    // รีเซ็ตสถานะออร์เดอร์ทั้งหมด
+    for i = 0 to array.size(orderPlaced) - 1
+        array.set(orderPlaced, i, false)
 
 // Plot current position average price if open
 plot(strategy.position_size != 0 ? strategy.position_avg_price : na, "Entry Price", color=color.purple, style=plot.style_cross, linewidth=2)
-
-// code นี้คือเมื่อ มันพึ่งปิด order มันจะเอา ราคา open ของแท่งหลังจากปิด order มาคิดและตั้ง buylimit ตามอท่งนั้น ทำให้ทุกครั้งที่ราคาชน grid มันจะไมาเปิดออร์เดอร์บางครั้ง
