@@ -36,7 +36,7 @@ for i = 0 to numGrid - 1
     string id = array.get(buyOrderIds, i)
     string exitId = "TP_" + str.tostring(i)
 
-    // เฉพาะเส้นที่ต่ำกว่า close[1]
-    if level < close[1]
+    // เงื่อนไขสำคัญ: close[1] > level และ low > level ป้องกัน fill ในแท่งนี้
+    if level < close[1] and low > level
         strategy.entry(id=id, direction=strategy.long, qty=1, limit=level)
         strategy.exit(id=exitId, from_entry=id, limit=nextLevel)
