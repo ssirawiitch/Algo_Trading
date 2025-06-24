@@ -24,7 +24,7 @@ if newDay or barstate.isfirst
         // วาดเส้น grid
         line.new(x1=bar_index, y1=level, x2=bar_index + 100, y2=level, color=color.gray, width=1, extend=extend.right, xloc=xloc.bar_time)
 
-// ==== ยกเลิก Order ทุกแท่งใหม่ ====
+// ==== ยกเลิก Order ทุกแท่งใหม่ ==== 
 if barstate.isnew
     for i = 0 to array.size(buyOrderIds) - 1
         strategy.cancel(array.get(buyOrderIds, i))
