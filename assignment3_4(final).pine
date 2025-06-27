@@ -1,0 +1,61 @@
+//@version=6
+strategy("Grid Buy/Cancel Each Bar (Lower than Prev Close)", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2, pyramiding=100)
+
+numGrid = input.int(5, "Number of Grid Levels", minval=1)
+upperZone = input.float(title="Upper Zone", defval=750, minval=0)
+lowerZone = input.float(title="Lower Zone", defval=700, minval=0)
+
+var float gridSize = (upperZone - lowerZone) / numGrid
+var float[] gridLevels = array.new_float()
+var string[] buyOrderIds = array.new_string()
+
+// สร้าง Grid ทุกวันใหม่ 
+var bool newDay = dayofmonth(time) != dayofmonth(time[1])
+
+// ต่างจากอันก่อนตรงที่เราจะตั้ง buy limit ที่ทุกเส้น grid เลยถ้ามันไปแตะก็จะมีออร์เดอร์แล้วจะตั้ง buy limit ที่เส้นเดิม เมื่อกราฟราคาอยู็ที่เส้นด้านบน
+
+// ยกเลิก Order เฉพาะตอนเริ่มวันใหม่ (ก่อนสร้าง grid ใหม่)
+if newDay and not barstate.isfirst
+    for i = 0 to array.size(buyOrderIds) - 1
+        strategy.cancel(array.get(buyOrderIds, i))
+
+if newDay or barstate.isfirst
+    array.clear(gridLevels)
+    array.clear(buyOrderIds)
+
+    for i = 0 to numGrid
+        float level = lowerZone + (gridSize * i)
+        array.push(gridLevels, level)
+        array.push(buyOrderIds, "Buy_" + str.tostring(i))
+
+        // วาดเส้น grid
+        line.new(x1=bar_index, y1=level, x2=bar_index + 100, y2=level, color=color.gray, width=1, extend=extend.right, xloc=xloc.bar_time)
+
+    // ตั้ง buy limit ที่ทุกเส้นก่อน
+    for i = 0 to numGrid - 1
+        float level = array.get(gridLevels, i)
+        float nextLevel = array.get(gridLevels, i + 1)
+        string id = array.get(buyOrderIds, i)
+        string exitId = "TP_" + str.tostring(i)
+
+        strategy.entry(id=id, direction=strategy.long, qty=1, limit=level)
+        strategy.exit(id=exitId, from_entry=id, limit=nextLevel)
+
+// ถ้าราคาไปแตะที่เส้นด้านบน เราจะตั้ง buy limit เส้นด้านล่าง
+// เติม logic: ถ้าราคาแตะ TP (เส้นด้านบน) แล้ว ตั้ง buy limit เส้นล่างใหม่ 
+for i = 0 to numGrid - 2 
+    string idBelow = array.get(buyOrderIds, i)
+    string exitId = "TP_" + str.tostring(i)
+    float levelBelow = array.get(gridLevels, i)
+    float levelAbove = array.get(gridLevels, i + 1)
+
+    // ถ้าแท่งราคาปัจจุบันแตะ levelAbove (เส้นบน)
+    bool touchedUpper = high >= levelAbove
+
+    if touchedUpper
+        // ตั้ง buy limit ที่เส้นล่าง พร้อม TP กลับขึ้นไปเส้นบน
+        strategy.entry(id=idBelow, direction=strategy.long, qty=1, limit=levelBelow)
+        strategy.exit(id=exitId, from_entry=idBelow, limit=levelAbove)
+
+
+
