@@ -10,12 +10,12 @@ var float[] gridLevels = array.new_float()
 var string[] buyOrderIds = array.new_string()
 
 // สร้าง Grid ทุกวันใหม่ 
-var bool newDay = dayofmonth(time) != dayofmonth(time[1])
+var bool newDay = na(time[1]) ? false : dayofmonth(time) != dayofmonth(time[1])
 
 // ต่างจากอันก่อนตรงที่เราจะตั้ง buy limit ที่ทุกเส้น grid เลยถ้ามันไปแตะก็จะมีออร์เดอร์แล้วจะตั้ง buy limit ที่เส้นเดิม เมื่อกราฟราคาอยู็ที่เส้นด้านบน
 
 // ยกเลิก Order เฉพาะตอนเริ่มวันใหม่ (ก่อนสร้าง grid ใหม่)
-if newDay and not barstate.isfirst
+if newDay
     for i = 0 to array.size(buyOrderIds) - 1
         strategy.cancel(array.get(buyOrderIds, i))
 
