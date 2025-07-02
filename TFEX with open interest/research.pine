@@ -1,175 +1,152 @@
 //@version=6
-strategy("Price Behavior Analysis on Key Levels - Fixed Types", overlay=true, margin_long=0)
+strategy("Price Behavior Analysis on Key Levels - Breakout & Reversal Only", overlay=true, margin_long=0)
 
 // ==== Input Parameters ====
 startLevel = input.float(575, "Start Level", minval=0)
 endLevel = input.float(1000, "End Level", minval=0)
 interval = input.float(25, "Level Interval", minval=1)
 
-// ==== 1. Create a User-Defined Type for the inner map ====
+// ==== User-Defined Type ====
 type BehaviorCounts
     map<string, int> countsMap
 
-// ==== Global Variables for Counting ====
-// map หลักจะเก็บ float (level) เป็น Key และ BehaviorCounts (user-defined type) เป็น Value
+// ==== Global Variables ====
 var map<float, BehaviorCounts> level_behavior_counts = map.new<float, BehaviorCounts>()
-
-// ประกาศตัวแปร totalReversals, totalBreakouts, totalTouches เป็น var float ที่นี่
-// เพื่อให้มีขอบเขต Global และสามารถใช้ plot() ได้
 var float totalReversals = 0.0
 var float totalBreakouts = 0.0
-var float totalTouches = 0.0
-
-// ==== Generate Levels ====
 var float[] keyLevels = array.new_float()
 
+// Hourly tracking
+var map<int, int> breakoutPerHour = map.new<int, int>()
+var map<int, int> reversalPerHour = map.new<int, int>()
+
+// ==== Create Key Levels ====
 if barstate.isfirst
-    // รีเซ็ตค่ารวมทั้งหมดเมื่อเริ่มต้นใหม่ (เช่น เมื่อโหลดสคริปต์ครั้งแรก)
     totalReversals := 0.0
     totalBreakouts := 0.0
-    totalTouches := 0.0
 
     float currentLevel = startLevel
     while currentLevel <= endLevel
         array.push(keyLevels, currentLevel)
-        
-        BehaviorCounts newBehaviorCounts = BehaviorCounts.new()
-        newBehaviorCounts.countsMap := map.new<string, int>()
-        
-        map.put(newBehaviorCounts.countsMap, "Touched_Resistance", 0)
-        map.put(newBehaviorCounts.countsMap, "Breakout_Resistance_Up", 0)
-        map.put(newBehaviorCounts.countsMap, "Reversal_Resistance_Down", 0)
-        map.put(newBehaviorCounts.countsMap, "Touched_Support", 0)
-        map.put(newBehaviorCounts.countsMap, "Breakout_Support_Down", 0)
-        map.put(newBehaviorCounts.countsMap, "Reversal_Support_Up", 0)
-        
-        map.put(level_behavior_counts, currentLevel, newBehaviorCounts)
-        
+
+        BehaviorCounts bc = BehaviorCounts.new()
+        bc.countsMap := map.new<string, int>()
+        map.put(bc.countsMap, "Breakout_Resistance_Up", 0)
+        map.put(bc.countsMap, "Reversal_Resistance_Down", 0)
+        map.put(bc.countsMap, "Breakout_Support_Down", 0)
+        map.put(bc.countsMap, "Reversal_Support_Up", 0)
+
+        map.put(level_behavior_counts, currentLevel, bc)
         currentLevel += interval
-    
+
     for level in keyLevels
         line.new(x1=bar_index, y1=level, x2=bar_index + 500, y2=level, color=color.new(color.gray, 90), width=1, extend=extend.right)
 
-// ==== Detect Behavior for Each Bar ====
+// ==== Behavior Detection ====
 if barstate.isconfirmed
-    // รีเซ็ตค่ารวมชั่วคราวในแต่ละแท่ง เพื่อคำนวณใหม่
-    // ค่าเหล่านี้จะถูกใช้ในการคำนวณสรุปในแท่ง islast
-    // แต่ plot() จะแสดงค่าสะสมของแท่งนั้นๆ
-    float currentBarTotalReversals = 0.0
-    float currentBarTotalBreakouts = 0.0
-    float currentBarTotalTouches = 0.0
+    float barBreakouts = 0.0
+    float barReversals = 0.0
+    float atr = ta.atr(14)
+    int hr = hour(time)
 
     for level in keyLevels
-        BehaviorCounts currentBehaviorCounts = map.get(level_behavior_counts, level)
-        map<string, int> currentLevelCountsMap = currentBehaviorCounts.countsMap
-        
-        bool touchedResistance = high >= level and high[1] < level
-        bool touchedSupport = low <= level and low[1] > level
-        
-        bool breakoutResistanceUp = close > level and close[1] <= level
-        bool breakoutSupportDown = close < level and close[1] >= level
+        BehaviorCounts bc = map.get(level_behavior_counts, level)
+        map<string, int> counts = bc.countsMap
 
-        float atrValue = ta.atr(14)
-        bool reversalResistanceDown = high >= level and close < open and close <= level and close > level - (atrValue * 0.5)
-        bool reversalSupportUp = low <= level and close > open and close >= level and close < level + (atrValue * 0.5)
+        // Resistance
+        bool breakoutRes = close > level and close[1] <= level
+        bool reversalRes = high >= level and close < open and close <= level and close > level - atr * 0.5
 
-        if touchedResistance and not breakoutResistanceUp and not reversalResistanceDown
-            map.put(currentLevelCountsMap, "Touched_Resistance", map.get(currentLevelCountsMap, "Touched_Resistance") + 1)
-            currentBarTotalTouches += 1
-        if breakoutResistanceUp
-            map.put(currentLevelCountsMap, "Breakout_Resistance_Up", map.get(currentLevelCountsMap, "Breakout_Resistance_Up") + 1)
-            currentBarTotalBreakouts += 1
-        if reversalResistanceDown
-            map.put(currentLevelCountsMap, "Reversal_Resistance_Down", map.get(currentLevelCountsMap, "Reversal_Resistance_Down") + 1)
-            currentBarTotalReversals += 1
+        if breakoutRes
+            map.put(counts, "Breakout_Resistance_Up", map.get(counts, "Breakout_Resistance_Up") + 1)
+            barBreakouts += 1
+            map.put(breakoutPerHour, hr, nz(map.get(breakoutPerHour, hr)) + 1)
 
-        if touchedSupport and not breakoutSupportDown and not reversalSupportUp
-            map.put(currentLevelCountsMap, "Touched_Support", map.get(currentLevelCountsMap, "Touched_Support") + 1)
-            currentBarTotalTouches += 1
-        if breakoutSupportDown
-            map.put(currentLevelCountsMap, "Breakout_Support_Down", map.get(currentLevelCountsMap, "Breakout_Support_Down") + 1)
-            currentBarTotalBreakouts += 1
-        if reversalSupportUp
-            map.put(currentLevelCountsMap, "Reversal_Support_Up", map.get(currentLevelCountsMap, "Reversal_Support_Up") + 1)
-            currentBarTotalReversals += 1
-    
-    // อัปเดต totalReversals, totalBreakouts, totalTouches ที่เป็น var float ให้สะสมค่า
-    // Note: ค่าเหล่านี้จะสะท้อนยอดรวม ณ แท่งนั้นๆ (ซึ่งจะถูกใช้โดย plot())
-    totalReversals := totalReversals + currentBarTotalReversals
-    totalBreakouts := totalBreakouts + currentBarTotalBreakouts
-    totalTouches := totalTouches + currentBarTotalTouches
+        if reversalRes
+            map.put(counts, "Reversal_Resistance_Down", map.get(counts, "Reversal_Resistance_Down") + 1)
+            barReversals += 1
+            map.put(reversalPerHour, hr, nz(map.get(reversalPerHour, hr)) + 1)
 
+        // Support
+        bool breakoutSup = close < level and close[1] >= level
+        bool reversalSup = low <= level and close > open and close >= level and close < level + atr * 0.5
 
-// ==== แสดงผลลัพธ์สุดท้าย (Label) ====
+        if breakoutSup
+            map.put(counts, "Breakout_Support_Down", map.get(counts, "Breakout_Support_Down") + 1)
+            barBreakouts += 1
+            map.put(breakoutPerHour, hr, nz(map.get(breakoutPerHour, hr)) + 1)
+
+        if reversalSup
+            map.put(counts, "Reversal_Support_Up", map.get(counts, "Reversal_Support_Up") + 1)
+            barReversals += 1
+            map.put(reversalPerHour, hr, nz(map.get(reversalPerHour, hr)) + 1)
+
+    totalBreakouts += barBreakouts
+    totalReversals += barReversals
+
+// ==== Final Summary ====
 var label resultLabel = na
-
 if barstate.islast
-    string summaryText = "Price Behavior Summary:\n"
-    
-    // คำนวณค่ารวมทั้งหมดอีกครั้งสำหรับ Label ณ แท่งสุดท้าย
-    // เนื่องจาก totalReversals, totalBreakouts, totalTouches ด้านบนเป็นค่าที่ Plot ได้
-    // แต่สำหรับ Label เราอยากได้ยอดรวมสุดท้ายที่คำนวณจาก map โดยตรง
-    // เพื่อให้มั่นใจว่าถูกต้อง (ถ้ามีการ reset map ในอนาคต)
-    float finalTotalReversals = 0.0
-    float finalTotalBreakouts = 0.0
-    float finalTotalTouches = 0.0
+    string summary = "Price Behavior Summary:\n"
+    float finalBreakouts = 0.0
+    float finalReversals = 0.0
 
     for level in keyLevels
-        BehaviorCounts behaviorData = map.get(level_behavior_counts, level)
-        map<string, int> counts = behaviorData.countsMap
-        
-        int touchedRes = map.get(counts, "Touched_Resistance")
-        int breakoutRes = map.get(counts, "Breakout_Resistance_Up")
-        int reversalRes = map.get(counts, "Reversal_Resistance_Down")
-        
-        int touchedSup = map.get(counts, "Touched_Support")
-        int breakoutSup = map.get(counts, "Breakout_Support_Down")
-        int reversalSup = map.get(counts, "Reversal_Support_Up")
-        
-        if (touchedRes + breakoutRes + reversalRes + touchedSup + breakoutSup + reversalSup > 0)
-            summaryText += "--- Level " + str.tostring(level) + " ---\n"
-            if touchedRes > 0
-                summaryText += "  Touched Resistance: " + str.tostring(touchedRes) + "\n"
-            if breakoutRes > 0
-                summaryText += "  Breakout Resistance (Up): " + str.tostring(breakoutRes) + "\n"
-            if reversalRes > 0
-                summaryText += "  Reversal from Resistance (Down): " + str.tostring(reversalRes) + "\n"
-            if touchedSup > 0
-                summaryText += "  Touched Support: " + str.tostring(touchedSup) + "\n"
-            if breakoutSup > 0
-                summaryText += "  Breakout Support (Down): " + str.tostring(breakoutSup) + "\n"
-            if reversalSup > 0
-                summaryText += "  Reversal from Support (Up): " + str.tostring(reversalSup) + "\n"
-            summaryText += "\n"
-        
-        finalTotalTouches += touchedRes + touchedSup
-        finalTotalBreakouts += breakoutRes + breakoutSup
-        finalTotalReversals += reversalRes + reversalSup
-    
-    summaryText += "======================\n"
-    summaryText += "Total Touches (All Levels): " + str.tostring(finalTotalTouches) + "\n"
-    summaryText += "Total Breakouts (All Levels): " + str.tostring(finalTotalBreakouts) + "\n"
-    summaryText += "Total Reversals (All Levels): " + str.tostring(finalTotalReversals) + "\n"
-    
+        BehaviorCounts bc = map.get(level_behavior_counts, level)
+        map<string, int> counts = bc.countsMap
+
+        int br = map.get(counts, "Breakout_Resistance_Up")
+        int rr = map.get(counts, "Reversal_Resistance_Down")
+        int bs = map.get(counts, "Breakout_Support_Down")
+        int rs = map.get(counts, "Reversal_Support_Up")
+
+        if br + rr + bs + rs > 0
+            summary += "--- Level " + str.tostring(level) + " ---\n"
+            if br > 0
+                summary += "  Breakout Resistance (Up): " + str.tostring(br) + "\n"
+            if rr > 0
+                summary += "  Reversal from Resistance (Down): " + str.tostring(rr) + "\n"
+            if bs > 0
+                summary += "  Breakout Support (Down): " + str.tostring(bs) + "\n"
+            if rs > 0
+                summary += "  Reversal from Support (Up): " + str.tostring(rs) + "\n"
+            summary += "\n"
+
+        finalBreakouts += br + bs
+        finalReversals += rr + rs
+
+    // Summary header
+    summary += "======================\n"
+    summary += "Total Breakouts (All Levels): " + str.tostring(finalBreakouts) + "\n"
+    summary += "Total Reversals (All Levels): " + str.tostring(finalReversals) + "\n"
+
+    // Add Hourly Breakdown
+    summary += "\n== Breakouts by Hour ==\n"
+    for i = 0 to 23
+        int count = nz(map.get(breakoutPerHour, i))
+        if count > 0
+            summary += str.tostring(i) + ":00-" + str.tostring(i + 1) + ":00 : " + str.tostring(count) + "\n"
+
+    summary += "\n== Reversals by Hour ==\n"
+    for i = 0 to 23
+        int count = nz(map.get(reversalPerHour, i))
+        if count > 0
+            summary += str.tostring(i) + ":00-" + str.tostring(i + 1) + ":00 : " + str.tostring(count) + "\n"
+
     if not na(resultLabel)
         label.delete(resultLabel)
-    
     resultLabel := label.new(
-         x=bar_index, 
-         y=close,
-         text=summaryText,
-         xloc=xloc.bar_index, 
-         yloc=yloc.price,
-         style=label.style_label_down, 
-         color=color.new(color.blue, 0),
-         textcolor=color.white, 
-         size=size.large
-         )
+        x=bar_index,
+        y=close,
+        text=summary,
+        xloc=xloc.bar_index,
+        yloc=yloc.price,
+        style=label.style_label_down,
+        color=color.new(color.blue, 0),
+        textcolor=color.white,
+        size=size.large
+    )
 
-// ==== Plotting (Optional - for visual confirmation in Data Window) ====
-// ตัวแปรเหล่านี้ถูกประกาศเป็น var float ด้านบนแล้ว ทำให้สามารถ plot ได้
-plot(totalReversals, title="Total Reversals (Accumulated)", color=color.red, display=display.none)
-plot(totalBreakouts, title="Total Breakouts (Accumulated)", color=color.green, display=display.none)
-plot(totalTouches, title="Total Touches (Accumulated)", color=color.blue, display=display.none)
-
-// plot(close, "Close", color.black)
+// ==== Plot (Optional for Debug) ====
+plot(totalReversals, title="Total Reversals", color=color.red, display=display.none)
+plot(totalBreakouts, title="Total Breakouts", color=color.green, display=display.none)

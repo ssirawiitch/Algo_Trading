@@ -38,3 +38,17 @@
 ---
 
 
+### 3. การเข้า order
+
+- ดูว่าที่เวลาไหนมีการกลับตัว หรือ เวลาไหนมีการ breakout
+- พอรู้เวลาเสร็จใช้ strategy ดังนี้
+  
+ถ้าเป็น reversal trade
+- หาแท่ง price action (bullish/bearish engulfing)
+- หรือ ใช้ rsi / volume ควบคู่ไปด้วย
+- rr 2:1
+
+ถ้าเป็น breakout 
+- ไม่เข้าเทรดทันที ให้รอ pullback กลับมายืนบนแนวต้านเดิม
+- ตั้ง buy sell ที่เส้นก่อนหน้า
+- rr 2:1
