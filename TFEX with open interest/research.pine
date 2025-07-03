@@ -135,17 +135,7 @@ if barstate.islast
 
     if not na(resultLabel)
         label.delete(resultLabel)
-    resultLabel := label.new(
-        x=bar_index,
-        y=close,
-        text=summary,
-        xloc=xloc.bar_index,
-        yloc=yloc.price,
-        style=label.style_label_down,
-        color=color.new(color.blue, 0),
-        textcolor=color.white,
-        size=size.large
-    )
+    resultLabel := label.new(x=bar_index,y=close,text=summary,xloc=xloc.bar_index,yloc=yloc.price,style=label.style_label_down,color=color.new(color.blue, 0),textcolor=color.white,size=size.large)
 
 // ==== Plot (Optional for Debug) ====
 plot(totalReversals, title="Total Reversals", color=color.red, display=display.none)
