@@ -1,0 +1,17 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sirawitchchairuangsirikul
+// ราคาลงมา retest(low >= เส้น grid) ที่เส้น grid เปิด long/short rr 1:4 sl 2.5 tp 10
+
+//@version=6
+strategy("Test OI 10", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2, pyramiding=100)
+
+// input
+len = input.float(10, "length", minval=0)
+numLevel = input.int(40,"number line",minval=0)
+startLevel = input.float(630,"strat level",minval=0)
+
+// plot line level
+for i = 0 to numLevel
+    float level = startLevel + (len * i)
+
+    line.new(x1=bar_index, y1=level, x2=bar_index + 100, y2=level, color=color.gray, width=1, extend=extend.right, xloc=xloc.bar_time)
