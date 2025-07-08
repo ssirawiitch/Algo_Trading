@@ -1,5 +1,5 @@
 //@version=6
-strategy("Grid Buy/Cancel Each Bar (Lower than Prev Close)", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2, pyramiding=100)
+strategy("Grid Buy/Cancel Each Bar (Lower than Prev Close)", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2,close_entries_rule="ANY", pyramiding=100)
 
 numGrid = input.int(5, "Number of Grid Levels", minval=1)
 upperZone = input.float(title="Upper Zone", defval=750, minval=0)
@@ -56,6 +56,5 @@ for i = 0 to numGrid - 2
         // ตั้ง buy limit ที่เส้นล่าง พร้อม TP กลับขึ้นไปเส้นบน
         strategy.entry(id=idBelow, direction=strategy.long, qty=1, limit=levelBelow)
         strategy.exit(id=exitId, from_entry=idBelow, limit=levelAbove)
-
 
 

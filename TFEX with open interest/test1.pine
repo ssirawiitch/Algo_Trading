@@ -6,9 +6,9 @@
 strategy("Test OI 10", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2, pyramiding=100)
 
 // input
-len = input.float(10, "length", minval=0)
-numLevel = input.int(40,"number line",minval=0)
-startLevel = input.float(630,"strat level",minval=0)
+len = input.float(0.005, "length", minval=0)
+numLevel = input.int(50,"number line",minval=0)
+startLevel = input.float(1.1000,"strat level",minval=0)
 
 // plot line level
 for i = 0 to numLevel
