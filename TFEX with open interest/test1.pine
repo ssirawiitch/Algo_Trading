@@ -6,12 +6,37 @@
 strategy("Test OI 10", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2, pyramiding=100)
 
 // input
-len = input.float(0.005, "length", minval=0)
+len = input.float(10, "length", minval=0)
 numLevel = input.int(50,"number line",minval=0)
-startLevel = input.float(1.1000,"strat level",minval=0)
+startLevel = input.float(550,"strat level",minval=0)
+sl_points = input.float(2.5, "Stop Loss (points)")
+tp_points = input.float(10.0, "Take Profit (points)")
 
 // plot line level
 for i = 0 to numLevel
     float level = startLevel + (len * i)
 
     line.new(x1=bar_index, y1=level, x2=bar_index + 100, y2=level, color=color.gray, width=1, extend=extend.right, xloc=xloc.bar_time)
+
+// array
+var float[] grid_levels = array.new_float()
+
+if array.size(grid_levels) == 0
+    for i = 0 to numLevel - 1
+        array.push(grid_levels, startLevel + i * len)
+
+// สำหรับทุกเส้น grid
+for i = 0 to array.size(grid_levels) - 1
+    level = array.get(grid_levels, i)
+
+    // ตรวจว่าแท่งก่อนหน้าทะลุขึ้นแล้วแท่งนี้กลับมาแตะ (SELL retest)
+    sell_retest = high[1] > level and close < level and close > level - len/2
+    if sell_retest
+        strategy.entry("Sell@"+str.tostring(level), strategy.short, comment="Sell Retest")
+        strategy.exit("SL/TP Sell", from_entry="Sell@"+str.tostring(level), stop=level + sl_points, limit=level - tp_points)
+
+    // ตรวจว่าแท่งก่อนหน้าทะลุลงแล้วแท่งนี้กลับมาแตะ (BUY retest)
+    buy_retest = low[1] < level and close > level and close < level + len/2
+    if buy_retest
+        strategy.entry("Buy@"+str.tostring(level), strategy.long, comment="Buy Retest")
+        strategy.exit("SL/TP Buy", from_entry="Buy@"+str.tostring(level), stop=level - sl_points, limit=level + tp_points)
