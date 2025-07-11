@@ -1,0 +1,85 @@
+//@version=6
+strategy("TFEX Trend & Sideway Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100,commission_value=43.1, slippage=1)
+
+// === INPUT ===
+show_labels = input.bool(true, "Show Trend Labels")
+rsi_period = input.int(14, "RSI Period", minval=1)
+bb_length = input.int(20, "Bollinger Length")
+bb_mult = input.float(2.0, "Bollinger Multiplier")
+
+// === TIMEFRAME HIGHER (H1) ===
+ema9_H1 = request.security(syminfo.tickerid, "60", ta.ema(close, 9))
+ema21_H1 = request.security(syminfo.tickerid, "60", ta.ema(close, 21))
+ema55_H1 = request.security(syminfo.tickerid, "60", ta.ema(close, 55))
+
+// === DETECT TREND ===
+uptrend = ema9_H1 > ema21_H1 and ema21_H1 > ema55_H1
+downtrend = ema9_H1 < ema21_H1 and ema21_H1 < ema55_H1
+sideway = not uptrend and not downtrend
+
+// === BOLLINGER BAND (M15) ===
+basis = ta.sma(close, bb_length)
+dev = bb_mult * ta.stdev(close, bb_length)
+upperBB = basis + dev
+lowerBB = basis - dev
+
+plot(upperBB, color=color.blue, title="Upper BB")
+plot(basis, color=color.gray, title="Middle BB")
+plot(lowerBB, color=color.blue, title="Lower BB")
+
+// === RSI (M15) ===
+rsi = ta.rsi(close, rsi_period)
+
+// === CROSS EMA FOR SIGNAL (IN M15) ===
+ema9 = ta.ema(close, 9)
+ema21 = ta.ema(close, 21)
+bull_cross = ta.crossover(ema9, ema21)
+bear_cross = ta.crossunder(ema9, ema21)
+change_trend_up = ta.crossover(ema9_H1, ema21_H1)
+change_trend_down = ta.crossunder(ema9_H1, ema21_H1)
+
+// === ENTRY CONDITIONS ===
+// Trend Entries
+longTrendCond = (uptrend and bull_cross) || (uptrend and change_trend_up)  // หรือซื้อตอนมันเปลี่ยนเป็ฯเทรนขึ้นทันที
+shortTrendCond = (downtrend and bear_cross) || (downtrend and change_trend_down)  // หรือขายตอนมันเปลี่ยนเป็นเทรนลงทันที
+
+// Sideway Entries
+longSidewayCond = sideway and close < lowerBB and rsi < 30
+shortSidewayCond = sideway and close > upperBB and rsi > 70
+
+// === SL/TP LOGIC ===
+// For trend: use fixed R:R (2:1)
+risk_pct = 0.5 / 100  // 0.5% risk per trade
+
+// Sideway: use SL = 5% of equity
+sl_pct_sideway = 5 / 100
+
+if (longTrendCond)
+    strategy.entry("Long Trend", strategy.long)
+    strategy.exit("TP/SL Trend", from_entry="Long Trend", loss=close * risk_pct, profit=close * risk_pct * 2)
+
+if (shortTrendCond)
+    strategy.entry("Short Trend", strategy.short)
+    strategy.exit("TP/SL Trend", from_entry="Short Trend", loss=close * risk_pct, profit=close * risk_pct * 2)
+
+if (longSidewayCond)
+    tp_price = basis  // take profit ที่เส้นกลาง
+    sl_price = close * (1 - sl_pct_sideway)
+    strategy.entry("Long Side", strategy.long)
+    strategy.exit("TP/SL Side", from_entry="Long Side", limit=tp_price, stop=sl_price)
+
+if (shortSidewayCond)
+    tp_price = basis
+    sl_price = close * (1 + sl_pct_sideway)
+    strategy.entry("Short Side", strategy.short)
+    strategy.exit("TP/SL Side", from_entry="Short Side", limit=tp_price, stop=sl_price)
+
+// === PLOT TREND LABEL ===
+var label trendLabel = na
+if (show_labels)
+    if (bar_index % 10 == 0)  // อัปเดตทุก 10 แท่ง
+        label.delete(trendLabel)
+        trendText = uptrend ? "Uptrend" : downtrend ? "Downtrend" : "Sideway"
+        trendColor = uptrend ? color.green : downtrend ? color.red : color.gray
+        trendLabel := label.new(x=bar_index, y=close, text=trendText, style=label.style_label_up, color=trendColor, textcolor=color.white)
+
