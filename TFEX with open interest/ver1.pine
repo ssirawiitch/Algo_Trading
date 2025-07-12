@@ -1,0 +1,77 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sirawitchchairuangsirikul
+// ราคาลงมา retest(low >= เส้น grid) ที่เส้น grid เปิด long/short rr 1:4 sl 2.5 tp 10
+
+//@version=6
+strategy("TFEX Grid Retest Trading", overlay=true, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=0, commission_type=strategy.commission.cash_per_contract, commission_value=43.1, slippage=2, pyramiding=100)
+
+// --- Inputs ---
+// Parameters for the grid setup
+grid_step = input.float(10, "Grid Step (Baht)", minval=1)
+num_levels = input.int(50, "Number of Grid Levels", minval=1)
+start_level = input.float(550, "Starting Grid Level", minval=0)
+
+// Stop Loss and Take Profit in Baht
+sl_baht = input.float(2.5, "Stop Loss (Baht)", minval=0.1)
+tp_baht = input.float(10.0, "Take Profit (Baht)", minval=0.1)
+
+// Tolerance for retest condition
+retest_tolerance = input.float(0.5, "Retest Tolerance (Baht)", minval=0) // Adjusted for more precise retest check
+
+// --- Helper Functions ---
+
+// Function to get the nearest grid level below or at the current price
+f_get_nearest_grid_down(price, step) =>
+    math.floor(price / step) * step
+
+// Function to get the nearest grid level above or at the current price
+f_get_nearest_grid_up(price, step) =>
+    math.ceil(price / step) * step
+
+// Function to check if there is an open order with a specific entry ID
+f_has_open_order_at_grid(entryId) =>
+    var bool exists = false
+    exists := false // Reset for each call
+    for i = 0 to strategy.opentrades - 1
+        if strategy.opentrades.entry_id(i) == entryId
+            exists := true
+            break
+    exists
+
+// --- Plot Grid Lines ---
+// Plots grid lines at the specified intervals
+if barstate.isfirst
+    for i = 0 to num_levels
+        float level = start_level + (grid_step * i)
+        line.new(x1=bar_index, y1=level, x2=bar_index + 1000, y2=level, color=color.gray, width=1, extend=extend.right, xloc=xloc.bar_time)
+
+// --- Trading Logic ---
+float current_price = close // Using close for simplicity, as bid/ask are not directly available in Pine Script for strategy execution
+
+// --- Long Entry Logic (Retest of grid from above) ---
+// Find the nearest grid level below the current price
+float nearest_grid_long = f_get_nearest_grid_down(current_price, grid_step)
+
+// Check if the low of the current bar has retested or crossed the nearest grid level from above
+// This means the price dropped to or below the grid level, and then bounced up (retested)
+bool retest_for_long = (low <= nearest_grid_long + retest_tolerance) and (current_price >= nearest_grid_long)
+
+string id_long = "Long@" + str.tostring(nearest_grid_long)
+
+if retest_for_long and not f_has_open_order_at_grid(id_long) and strategy.opentrades.size == 0 // Only one trade at a time
+    strategy.entry(id_long, strategy.long, qty=1, limit=nearest_grid_long) // Use limit order to ensure entry at grid
+    strategy.exit("TP/SL Long", from_entry=id_long, stop=nearest_grid_long - sl_baht, limit=nearest_grid_long + tp_baht)
+
+// --- Short Entry Logic (Retest of grid from below) ---
+// Find the nearest grid level above the current price
+float nearest_grid_short = f_get_nearest_grid_up(current_price, grid_step)
+
+// Check if the high of the current bar has retested or crossed the nearest grid level from below
+// This means the price rose to or above the grid level, and then dropped down (retested)
+bool retest_for_short = (high >= nearest_grid_short - retest_tolerance) and (current_price <= nearest_grid_short)
+
+string id_short = "Short@" + str.tostring(nearest_grid_short)
+
+if retest_for_short and not f_has_open_order_at_grid(id_short) and strategy.opentrades.size == 0 // Only one trade at a time
+    strategy.entry(id_short, strategy.short, qty=1, limit=nearest_grid_short) // Use limit order to ensure entry at grid
+    strategy.exit("TP/SL Short", from_entry=id_short, stop=nearest_grid_short + sl_baht, limit=nearest_grid_short - tp_baht)
