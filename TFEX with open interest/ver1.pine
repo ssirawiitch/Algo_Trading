@@ -18,8 +18,6 @@ tp_baht = input.float(10.0, "Take Profit (Baht)", minval=0.1)
 // Tolerance for retest condition
 retest_tolerance = input.float(0.5, "Retest Tolerance (Baht)", minval=0) // Adjusted for more precise retest check
 
-// --- Helper Functions ---
-
 // Function to get the nearest grid level below or at the current price
 f_get_nearest_grid_down(price, step) =>
     math.floor(price / step) * step
@@ -46,7 +44,7 @@ if barstate.isfirst
         line.new(x1=bar_index, y1=level, x2=bar_index + 1000, y2=level, color=color.gray, width=1, extend=extend.right, xloc=xloc.bar_time)
 
 // --- Trading Logic ---
-float current_price = close // Using close for simplicity, as bid/ask are not directly available in Pine Script for strategy execution
+float current_price = close
 
 // --- Long Entry Logic (Retest of grid from above) ---
 // Find the nearest grid level below the current price
