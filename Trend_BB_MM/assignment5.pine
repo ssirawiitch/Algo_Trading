@@ -43,6 +43,18 @@ ema21 = ta.ema(close, 21)
 bull_cross = ta.crossover(ema9, ema21)
 bear_cross = ta.crossunder(ema9, ema21)
 
+capital = strategy.equity
+// กำหนด Risk/Reward
+risk_pct = 1.0 / 100        // เสี่ยง 1% ต่อไม้ (SL)
+reward_pct = 2.0 / 100      // ตั้ง TP ที่ 2% ของพอร์ต
+// คำนวณเงินที่ยอมขาดทุนต่อไม้ (SL)
+risk_amount = capital * risk_pct
+reward_amount = capital * reward_pct
+risk_per_unit_long = close * 0.01
+risk_per_unit_short = close * 0.01
+qty_long = risk_per_unit_long > 0 ? risk_amount / risk_per_unit_long : na
+qty_short = risk_per_unit_short > 0 ? risk_amount / risk_per_unit_short : na
+
 // === ENTRY LOGIC ===
 // Trend: เทรนด์เปลี่ยน → เข้าทันที
 if trendChanged
@@ -60,38 +72,41 @@ if trendChanged
 
     lastTrend := trendNow
 
-// Trend: ปิด position ด้วย EMA cross
+// === Trend Entry Logic (สัมพันธ์กับ sideway qty) ===
+trend_qty_long = not na(qty_long) ? qty_long : 1
+trend_qty_short = not na(qty_short) ? qty_short : 1
+
+// Trend: ปิดเมื่อ cross
 if uptrend and bear_cross and strategy.position_size > 0
     strategy.close("Long Trend")
 
 if uptrend and bull_cross and strategy.position_size == 0
-    strategy.entry("Long Trend", strategy.long)
+    strategy.entry("Long Trend", strategy.long, qty=trend_qty_long)
 
 if downtrend and bull_cross and strategy.position_size < 0
     strategy.close("Short Trend")
 
 if downtrend and bear_cross and strategy.position_size == 0
-    strategy.entry("Short Trend", strategy.short)
+    strategy.entry("Short Trend", strategy.short, qty=trend_qty_short)
+
 
 // === Sideway Logic ===
-// คำนวณ position size จาก 2% ของ equity
-capital = strategy.equity
-risk_amount = capital * (risk_percent / 100)
-sl_price_long = close * (1 - sl_pct_sideway / 100)
-sl_price_short = close * (1 + sl_pct_sideway / 100)
+// ----- Long Sideway -----
 
-risk_per_unit_long = close - sl_price_long
-risk_per_unit_short = sl_price_short - close
+sl_price_long = close * 0.99  // 1% SL
+tp_price_long = close + (reward_amount / qty_long)
 
-qty_long = risk_per_unit_long > 0 ? risk_amount / risk_per_unit_long : na
-qty_short = risk_per_unit_short > 0 ? risk_amount / risk_per_unit_short : na
-
-// Long sideway
 if sideway and close < lowerBB and rsi < 30 and not na(qty_long)
     strategy.entry("Long Sideway", strategy.long, qty=qty_long)
-    strategy.exit("Exit L", from_entry="Long Sideway", limit=basis, stop=sl_price_long)
+    strategy.exit("TP/SL L", from_entry="Long Sideway", stop=sl_price_long, limit=tp_price_long)
 
-// Short sideway
+
+// ----- Short Sideway -----
+
+sl_price_short = close * 1.01  // 1% SL
+tp_price_short = close - (reward_amount / qty_short)
+
 if sideway and close > upperBB and rsi > 70 and not na(qty_short)
     strategy.entry("Short Sideway", strategy.short, qty=qty_short)
-    strategy.exit("Exit S", from_entry="Short Sideway", limit=basis, stop=sl_price_short)
+    strategy.exit("TP/SL S", from_entry="Short Sideway", stop=sl_price_short, limit=tp_price_short)
+
