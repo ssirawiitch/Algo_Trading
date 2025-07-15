@@ -1,23 +1,30 @@
 //@version=6
-strategy("TFEX Trend & Sideway Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100,commission_value=43.1, slippage=1)
+strategy("TFEX Trend & Sideway Strategy", overlay=true, default_qty_type=strategy.fixed, commission_value=43.1, slippage=1)
 
 // === INPUT ===
 show_labels = input.bool(true, "Show Trend Labels")
 rsi_period = input.int(14, "RSI Period", minval=1)
 bb_length = input.int(20, "Bollinger Length")
 bb_mult = input.float(2.0, "Bollinger Multiplier")
+risk_percent = input.float(2.0, "Risk per Trade (%) for Sideway", minval=0.1, maxval=100)
+sl_pct_sideway = 5.0  // stop loss 5% in sideway
 
-// === TIMEFRAME HIGHER (H1) ===
-ema9_H1 = request.security(syminfo.tickerid, "60", ta.ema(close, 9))
-ema21_H1 = request.security(syminfo.tickerid, "60", ta.ema(close, 21))
-ema55_H1 = request.security(syminfo.tickerid, "60", ta.ema(close, 55))
+// === TIMEFRAME HIGHER (H4) ===
+ema9_H4 = request.security(syminfo.tickerid, "240", ta.ema(close, 9))
+ema21_H4 = request.security(syminfo.tickerid, "240", ta.ema(close, 21))
+ema55_H4 = request.security(syminfo.tickerid, "240", ta.ema(close, 55))
 
-// === DETECT TREND ===
-uptrend = ema9_H1 > ema21_H1 and ema21_H1 > ema55_H1
-downtrend = ema9_H1 < ema21_H1 and ema21_H1 < ema55_H1
+// === DETECT TREND (H4) ===
+uptrend = ema9_H4 > ema21_H4 and ema21_H4 > ema55_H4
+downtrend = ema9_H4 < ema21_H4 and ema21_H4 < ema55_H4
 sideway = not uptrend and not downtrend
 
-// === BOLLINGER BAND (M15) ===
+// === ตรวจจับการเปลี่ยน Trend ===
+var string lastTrend = "none"
+trendNow = uptrend ? "up" : downtrend ? "down" : "side"
+trendChanged = trendNow != lastTrend
+
+// === Bollinger Bands (M15) ===
 basis = ta.sma(close, bb_length)
 dev = bb_mult * ta.stdev(close, bb_length)
 upperBB = basis + dev
@@ -27,59 +34,64 @@ plot(upperBB, color=color.blue, title="Upper BB")
 plot(basis, color=color.gray, title="Middle BB")
 plot(lowerBB, color=color.blue, title="Lower BB")
 
-// === RSI (M15) ===
+// === RSI ===
 rsi = ta.rsi(close, rsi_period)
 
-// === CROSS EMA FOR SIGNAL (IN M15) ===
+// === EMA M15 สำหรับ Cross ===
 ema9 = ta.ema(close, 9)
 ema21 = ta.ema(close, 21)
 bull_cross = ta.crossover(ema9, ema21)
 bear_cross = ta.crossunder(ema9, ema21)
-change_trend_up = ta.crossover(ema9_H1, ema21_H1)
-change_trend_down = ta.crossunder(ema9_H1, ema21_H1)
 
-// === ENTRY CONDITIONS ===
-// Trend Entries
-longTrendCond = (uptrend and bull_cross) || (uptrend and change_trend_up)  // หรือซื้อตอนมันเปลี่ยนเป็ฯเทรนขึ้นทันที
-shortTrendCond = (downtrend and bear_cross) || (downtrend and change_trend_down)  // หรือขายตอนมันเปลี่ยนเป็นเทรนลงทันที
+// === ENTRY LOGIC ===
+// Trend: เทรนด์เปลี่ยน → เข้าทันที
+if trendChanged
+    strategy.close_all(comment="Trend changed")
 
-// Sideway Entries
-longSidewayCond = sideway and close < lowerBB and rsi < 30
-shortSidewayCond = sideway and close > upperBB and rsi > 70
+    if trendNow == "up"
+        strategy.entry("Long Trend", strategy.long)
+    else if trendNow == "down"
+        strategy.entry("Short Trend", strategy.short)
 
-// === SL/TP LOGIC ===
-// For trend: use fixed R:R (2:1)
-risk_pct = 0.5 / 100  // 0.5% risk per trade
+    // ป้ายเทรนด์
+    if show_labels
+        trendColor = trendNow == "up" ? color.green : trendNow == "down" ? color.red : color.gray
+        label.new(bar_index, close, text=trendNow == "up" ? "📈 Uptrend" : trendNow == "down" ? "📉 Downtrend" : "🔄 Sideway", style=label.style_label_down, color=trendColor, textcolor=color.white)
 
-// Sideway: use SL = 5% of equity
-sl_pct_sideway = 5 / 100
+    lastTrend := trendNow
 
-if (longTrendCond)
+// Trend: ปิด position ด้วย EMA cross
+if uptrend and bear_cross and strategy.position_size > 0
+    strategy.close("Long Trend")
+
+if uptrend and bull_cross and strategy.position_size == 0
     strategy.entry("Long Trend", strategy.long)
-    strategy.exit("TP/SL Trend", from_entry="Long Trend", loss=close * risk_pct, profit=close * risk_pct * 2)
 
-if (shortTrendCond)
+if downtrend and bull_cross and strategy.position_size < 0
+    strategy.close("Short Trend")
+
+if downtrend and bear_cross and strategy.position_size == 0
     strategy.entry("Short Trend", strategy.short)
-    strategy.exit("TP/SL Trend", from_entry="Short Trend", loss=close * risk_pct, profit=close * risk_pct * 2)
 
-if (longSidewayCond)
-    tp_price = basis  // take profit ที่เส้นกลาง
-    sl_price = close * (1 - sl_pct_sideway)
-    strategy.entry("Long Side", strategy.long)
-    strategy.exit("TP/SL Side", from_entry="Long Side", limit=tp_price, stop=sl_price)
+// === Sideway Logic ===
+// คำนวณ position size จาก 2% ของ equity
+capital = strategy.equity
+risk_amount = capital * (risk_percent / 100)
+sl_price_long = close * (1 - sl_pct_sideway / 100)
+sl_price_short = close * (1 + sl_pct_sideway / 100)
 
-if (shortSidewayCond)
-    tp_price = basis
-    sl_price = close * (1 + sl_pct_sideway)
-    strategy.entry("Short Side", strategy.short)
-    strategy.exit("TP/SL Side", from_entry="Short Side", limit=tp_price, stop=sl_price)
+risk_per_unit_long = close - sl_price_long
+risk_per_unit_short = sl_price_short - close
 
-// === PLOT TREND LABEL ===
-var label trendLabel = na
-if (show_labels)
-    if (bar_index % 10 == 0)  // อัปเดตทุก 10 แท่ง
-        label.delete(trendLabel)
-        trendText = uptrend ? "Uptrend" : downtrend ? "Downtrend" : "Sideway"
-        trendColor = uptrend ? color.green : downtrend ? color.red : color.gray
-        trendLabel := label.new(x=bar_index, y=close, text=trendText, style=label.style_label_up, color=trendColor, textcolor=color.white)
+qty_long = risk_per_unit_long > 0 ? risk_amount / risk_per_unit_long : na
+qty_short = risk_per_unit_short > 0 ? risk_amount / risk_per_unit_short : na
 
+// Long sideway
+if sideway and close < lowerBB and rsi < 30 and not na(qty_long)
+    strategy.entry("Long Sideway", strategy.long, qty=qty_long)
+    strategy.exit("Exit L", from_entry="Long Sideway", limit=basis, stop=sl_price_long)
+
+// Short sideway
+if sideway and close > upperBB and rsi > 70 and not na(qty_short)
+    strategy.entry("Short Sideway", strategy.short, qty=qty_short)
+    strategy.exit("Exit S", from_entry="Short Sideway", limit=basis, stop=sl_price_short)
